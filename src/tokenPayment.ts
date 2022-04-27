@@ -92,7 +92,10 @@ export class TokenPayment {
 
         let amount = this.amountAsBigInteger.shiftedBy(-this.numDecimals);
         let formattedAmount = amount.toFormat(decimalPlaces, bigNumberFormat);
-        return `${formattedAmount} ${suffix}`;
+        if (suffix) {
+          return `${formattedAmount} ${suffix}`;
+        }
+        return formattedAmount;
     }
 
     toRationalNumber() {
