@@ -4,8 +4,8 @@ import {Signature} from "../signature";
 
 export interface IDappProvider {
     init(): Promise<boolean>;
-    login(options?: {callbackUrl?: string; token?: string; addressIndex?: number}): Promise<string>;
-    logout(options?: {callbackUrl?: string}): Promise<boolean>;
+    login(options?: {callbackUrl?: string; token?: string; addressIndex?: number; wc2Approval?: any;}): Promise<string>;
+    logout(options?: {callbackUrl?: string; wc2Topic?: string}): Promise<boolean>;
     getAddress(): Promise<string>;
     isInitialized(): boolean;
     isConnected(): Promise<boolean>;

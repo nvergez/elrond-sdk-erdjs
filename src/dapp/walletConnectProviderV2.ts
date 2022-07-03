@@ -1,0 +1,515 @@
+import Client from "@walletconnect/sign-client";
+import { PairingTypes, SessionTypes } from "@walletconnect/types";
+import { getSdkError } from "@walletconnect/utils";
+import { IProvider } from "../interface";
+import { IDappProvider } from "./interface";
+import { Address } from "../address";
+import { Transaction } from "../transaction";
+import { WALLETCONNECT_ELROND_NAMESPACE } from "./constants";
+import { Logger } from "../logger";
+import { Signature } from "../signature";
+import { SignableMessage } from "../signableMessage";
+
+export enum Operation {
+  SignTransaction = "erd_signTransaction",
+  SignTransactions = "erd_signTransactions",
+  SignMessage = "erd_signMessage",
+}
+
+interface IClientConnect {
+  onClientLogin: () => void;
+  onClientLogout(): void;
+}
+
+export { PairingTypes, SessionTypes };
+
+export class WalletConnectProviderV2 implements IDappProvider {
+  provider: IProvider;
+  walletConnectV2Relay: string;
+  walletConnectV2ProjectId: string;
+  chainId: string = "";
+  address: string = "";
+  signature: string = "";
+  isInitializing: boolean = false;
+  walletConnector: Client | undefined;
+  session: SessionTypes.Struct | undefined;
+  pairings: PairingTypes.Struct[] | undefined;
+
+  private onClientConnect: IClientConnect;
+
+  constructor(
+    httpProvider: IProvider,
+    onClientConnect: IClientConnect,
+    chainId: string,
+    walletConnectV2Relay: string,
+    walletConnectV2ProjectId: string
+  ) {
+    this.provider = httpProvider;
+    this.onClientConnect = onClientConnect;
+    this.chainId = chainId;
+    this.walletConnectV2Relay = walletConnectV2Relay;
+    this.walletConnectV2ProjectId = walletConnectV2ProjectId;
+  }
+
+  /**
+   * Initiates wallet connect client.
+   */
+  async init(): Promise<boolean> {
+    try {
+      const client = await Client.init({
+        relayUrl: this.walletConnectV2Relay,
+        projectId: this.walletConnectV2ProjectId,
+      });
+
+      this.walletConnector = client;
+      await this.subscribeToEvents(client);
+      await this.checkPersistedState(client);
+    } catch (err) {
+      throw new Error("connect: WalletConnect is unable to init");
+    } finally {
+      this.isInitializing = false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Returns true if init() was previously called successfully
+   */
+  isInitialized(): boolean {
+    return !!this.walletConnector;
+  }
+
+  /**
+   * Mocked function, returns isInitialized as an async function
+   */
+  isConnected(): Promise<boolean> {
+    return new Promise((resolve, _) => resolve(this.isInitialized()));
+  }
+
+  async connect(options?: {
+    wc2Topic?: string;
+  }): Promise<{
+    uri?: string;
+    approval: () => Promise<SessionTypes.Struct>;
+  }> {
+    if (typeof this.walletConnector === "undefined") {
+      await this.init();
+    }
+
+    if (typeof this.walletConnector === "undefined") {
+      throw new Error("WalletConnect is not initialized");
+    }
+
+    const methods = Object.values(Operation);
+    const chains = [`${WALLETCONNECT_ELROND_NAMESPACE}:${this.chainId}`];
+    try {
+      const response = await this.walletConnector.connect({
+        pairingTopic: options?.wc2Topic,
+        requiredNamespaces: {
+          [WALLETCONNECT_ELROND_NAMESPACE]: {
+            methods,
+            chains,
+            events: [],
+          },
+        },
+      });
+
+      return response;
+    } catch (e) {
+      if (options?.wc2Topic) {
+        await this.logout({ wc2Topic: options.wc2Topic });
+        Logger.error(
+          "connect: WalletConnect is unable to connect to existing pairing"
+        );
+        throw new Error(
+          "connect: WalletConnect is unable to connect to existing pairing"
+        );
+      } else {
+        Logger.error("connect: WalletConnect is unable to connect");
+        throw new Error("connect: WalletConnect is unable to connect");
+      }
+    }
+  }
+
+  async login(options?: {
+    wc2Approval?: () => Promise<SessionTypes.Struct>;
+  }): Promise<string> {
+    this.isInitializing = true;
+    if (typeof this.walletConnector === "undefined") {
+      await this.connect();
+    }
+
+    if (typeof this.walletConnector === "undefined") {
+      throw new Error("WalletConnect is not initialized");
+    }
+
+    if (typeof this.session !== "undefined") {
+      await this.logout();
+    }
+
+    try {
+      if (options && options.wc2Approval) {
+        const session = await options.wc2Approval();
+        const address = await this.onSessionConnected(session);
+
+        return address;
+      }
+    } catch (e) {
+      Logger.error("login: WalletConnect is unable to login");
+      throw new Error("login: WalletConnect is unable to login");
+    } finally {
+      this.isInitializing = false;
+    }
+
+    return "";
+  }
+
+  /**
+   * Mocks a logout request by returning true
+   */
+
+  async logout(options?: { wc2Topic?: string }): Promise<boolean> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error("logout: Wallet Connect not initialised, call init() first");
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    try {
+      if (options && options.wc2Topic) {
+        const pairings = await this.getPairings();
+        if (pairings && pairings.length > 0) {
+          const newPairings = pairings.filter(
+            (pairing) => pairing.topic !== options.wc2Topic && !!pairing.active
+          );
+
+          this.pairings = newPairings;
+        }
+      }
+
+      await this.walletConnector.disconnect({
+        topic: options?.wc2Topic ?? this.session!.topic,
+        reason: getSdkError("USER_DISCONNECTED"),
+      });
+    } catch {}
+
+    return true;
+  }
+
+  /**
+   * Fetches the wallet connect address
+   */
+  async getAddress(): Promise<string> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error(
+        "getAddress: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    return this.address;
+  }
+
+  /**
+   * Fetches the wallet connect signature
+   */
+  async getSignature(): Promise<string> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error(
+        "getSignature: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    return this.signature;
+  }
+
+  /**
+   * Fetches the wallet connect pairings
+   */
+  async getPairings(): Promise<PairingTypes.Struct[] | undefined> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error(
+        "getPairings: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    return (
+      this.pairings ?? this.walletConnector.pairing.getAll({ active: true })
+    );
+  }
+
+  /**
+   * Signs and sends a transaction. Returns the transaction hash
+   * @param transaction
+   */
+  async sendTransaction(transaction: Transaction): Promise<Transaction> {
+    if (!this.walletConnector) {
+      Logger.error(
+        "sendTransaction: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    transaction = await this.signTransaction(transaction);
+
+    await transaction.send(this.provider);
+    return transaction;
+  }
+
+  /**
+   * Method will be available once the Maiar wallet connect hook is implemented
+   * @param _
+   */
+  async signMessage<T extends SignableMessage>(message: T): Promise<T> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error(
+        "signMessage: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    const address = await this.getAddress();
+    const { signature } = await this.walletConnector!.request({
+      chainId: `${WALLETCONNECT_ELROND_NAMESPACE}:${this.chainId}`,
+      topic: this.session!.topic,
+      request: {
+        method: Operation.SignMessage,
+        params: {
+          address,
+          message: message.message.toString(),
+        },
+      },
+    });
+
+    if (!signature) {
+      Logger.error("signMessage: Wallet Connect could not sign the message");
+      throw new Error("Wallet Connect could not sign the message");
+    }
+
+    message.applySignature(new Signature(signature));
+
+    return message;
+  }
+
+  /**
+   * Signs a transaction and returns it
+   * @param transaction
+   */
+  async signTransaction<T extends Transaction>(transaction: T): Promise<T> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error(
+        "signTransaction: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    const address = await this.getAddress();
+    const sender = new Address(address);
+    const wcTransaction = transaction.toPlainObject(sender);
+
+    if (this.chainId !== transaction.getChainID().valueOf()) {
+      Logger.error(
+        "signTransaction: Transaction Chain Id different than Connection Chain Id"
+      );
+      throw new Error(
+        "Transaction Chain Id different than Connection Chain Id"
+      );
+    }
+    const {
+      signature,
+    }: { signature: string } = await this.walletConnector!.request({
+      chainId: `${WALLETCONNECT_ELROND_NAMESPACE}:${this.chainId}`,
+      topic: this.session!.topic,
+      request: {
+        method: Operation.SignTransaction,
+        params: {
+          transaction: wcTransaction,
+        },
+      },
+    });
+
+    if (!signature) {
+      Logger.error(
+        "signTransaction: Wallet Connect could not sign the transaction"
+      );
+      throw new Error("Wallet Connect could not sign the transaction");
+    }
+
+    transaction.applySignature(
+      Signature.fromHex(signature),
+      Address.fromBech32(address)
+    );
+    return transaction;
+  }
+
+  /**
+   * Signs an array of transactions and returns it
+   * @param transactions
+   */
+  async signTransactions<T extends Transaction>(
+    transactions: T[]
+  ): Promise<T[]> {
+    if (typeof this.walletConnector === "undefined") {
+      Logger.error(
+        "signTransactions: Wallet Connect not initialised, call init() first"
+      );
+      throw new Error("Wallet Connect not initialised, call init() first");
+    }
+
+    const address = await this.getAddress();
+    const sender = new Address(address);
+    const wcTransactions = transactions.map((transaction) => {
+      if (this.chainId !== transaction.getChainID().valueOf()) {
+        Logger.error(
+          "signTransaction: Transaction Chain Id different than Connection Chain Id"
+        );
+        throw new Error(
+          "Transaction Chain Id different than Connection Chain Id"
+        );
+      }
+      return transaction.toPlainObject(sender);
+    });
+    const {
+      signatures,
+    }: {
+      signatures: { signature: string }[];
+    } = await this.walletConnector!.request({
+      chainId: `${WALLETCONNECT_ELROND_NAMESPACE}:${this.chainId}`,
+      topic: this.session!.topic,
+      request: {
+        method: Operation.SignTransactions,
+        params: {
+          transactions: wcTransactions,
+        },
+      },
+    });
+
+    if (!signatures || !Array.isArray(signatures)) {
+      Logger.error(
+        "signTransactions: Wallet Connect could not sign the transactions"
+      );
+      throw new Error("Wallet Connect could not sign the transactions");
+    }
+
+    if (transactions.length !== signatures.length) {
+      Logger.error(
+        "signTransactions: Wallet Connect could not sign the transactions. Invalid signatures."
+      );
+      throw new Error(
+        "Wallet Connect could not sign the transactions. Invalid signatures."
+      );
+    }
+
+    for (const [index, transaction] of transactions.entries()) {
+      transaction.applySignature(
+        Signature.fromHex(signatures[index].signature),
+        Address.fromBech32(address)
+      );
+    }
+
+    return transactions;
+  }
+
+  private async loginAccount(address: string, signature?: string) {
+    if (this.addressIsValid(address)) {
+      this.address = address;
+      if (signature) {
+        this.signature = signature;
+      }
+      this.onClientConnect.onClientLogin();
+      return;
+    }
+
+    Logger.error(`Wallet Connect invalid address ${address}`);
+    if (this.session && this.walletConnector) {
+      await this.walletConnector.disconnect({
+        topic: this.session.topic,
+        reason: getSdkError("USER_DISCONNECTED"),
+      });
+    }
+  }
+
+  private async onSessionConnected(
+    session: SessionTypes.Struct
+  ): Promise<string> {
+    this.session = session;
+
+    const selectedNamespace =
+      session.namespaces[WALLETCONNECT_ELROND_NAMESPACE];
+
+    if (selectedNamespace && selectedNamespace.accounts) {
+      // Use only the first address in case of multiple provided addresses
+      const currentSession = selectedNamespace.accounts[0];
+      const [namespace, reference, providedAddress] = currentSession.split(":");
+      const [address, signature] = providedAddress.split(".");
+      await this.loginAccount(address, signature);
+
+      return address;
+    }
+
+    return "";
+  }
+
+  private async subscribeToEvents(client: Client) {
+    if (typeof client === "undefined") {
+      throw new Error("WalletConnect is not initialized");
+    }
+
+    client.on("session_update", ({ topic, params }) => {
+      const { namespaces } = params;
+      const _session = client.session.get(topic);
+      const updatedSession = { ..._session, namespaces };
+      this.onSessionConnected(updatedSession);
+    });
+
+    client.on("session_delete", () => {
+      this.onClientConnect.onClientLogout();
+    });
+
+    client.on("session_expire", () => {
+      this.onClientConnect.onClientLogout();
+    });
+
+    client.on("pairing_delete", () => {
+      this.onClientConnect.onClientLogout();
+    });
+
+    client.on("pairing_expire", () => {
+      this.onClientConnect.onClientLogout();
+    });
+  }
+
+  private async checkPersistedState(client: Client) {
+    if (typeof client === "undefined") {
+      throw new Error("WalletConnect is not initialized");
+    }
+
+    this.pairings = client.pairing.getAll({ active: true });
+
+    if (typeof this.session !== "undefined") {
+      return;
+    }
+
+    // Populates existing session to state (assume only the top one)
+    if (client.session.length && !this.address) {
+      const lastKeyIndex = client.session.keys.length - 1;
+      const session = client.session.get(client.session.keys[lastKeyIndex]);
+
+      await this.onSessionConnected(session);
+      return session;
+    }
+
+    return;
+  }
+
+  private addressIsValid(destinationAddress: string): boolean {
+    try {
+      const addr = Address.fromBech32(destinationAddress);
+      return !!addr;
+    } catch {
+      return false;
+    }
+  }
+}
