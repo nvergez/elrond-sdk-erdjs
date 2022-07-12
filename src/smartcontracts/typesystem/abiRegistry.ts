@@ -9,7 +9,7 @@ import { EndpointDefinition, EndpointParameterDefinition } from "./endpoint";
 
 export class AbiRegistry {
     readonly interfaces: ContractInterface[] = [];
-    customTypes: CustomType[] = [];
+    private customTypes: CustomType[] = [];
 
     static create(json: { name: string; endpoints: any[]; types: any[] }): AbiRegistry {
         let registry = new AbiRegistry().extend(json);
@@ -49,8 +49,7 @@ export class AbiRegistry {
     }
 
     private sortCustomTypesByDependencies() {
-        // Use of the topological sort algorithm to sort custom types by dependencies.
-
+        // Use of topological sort algorithm to sort custom types by dependencies.
         let dependencies: { [key: string]: string[] } = {};
         let visited: { [key: string]: boolean } = {};
         this.customTypes.forEach((type: CustomType) => {
