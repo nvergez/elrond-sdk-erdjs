@@ -6,14 +6,14 @@ const DescriptionPlaceholder = "N / A";
 
 export class EndpointDefinition {
     readonly name: string;
-    readonly doc: string[] = [];
+    readonly docs: string[] = [];
     readonly input: EndpointParameterDefinition[] = [];
     readonly output: EndpointParameterDefinition[] = [];
     readonly modifiers: EndpointModifiers;
 
-    constructor(name: string, doc: string[], input: EndpointParameterDefinition[], output: EndpointParameterDefinition[], modifiers: EndpointModifiers) {
+    constructor(name: string, docs: string[], input: EndpointParameterDefinition[], output: EndpointParameterDefinition[], modifiers: EndpointModifiers) {
         this.name = name;
-        this.doc = doc || [];
+        this.docs = docs || [];
         this.input = input || [];
         this.output = output || [];
         this.modifiers = modifiers;
@@ -28,13 +28,13 @@ export class EndpointDefinition {
         mutability: string,
         payableInTokens: string[],
         onlyOwner: boolean,
-        doc: string[],
+        docs: string[],
         inputs: any[],
         outputs: []
     }): EndpointDefinition {
         json.name = json.name == null ? NamePlaceholder : json.name;
         json.payableInTokens = json.payableInTokens || [];
-        json.doc = json.doc || [];
+        json.docs = json.docs || [];
         json.inputs = json.inputs || [];
         json.outputs = json.outputs || [];
         json.onlyOwner = json.onlyOwner || false;
@@ -43,7 +43,7 @@ export class EndpointDefinition {
         let output = json.outputs.map(param => EndpointParameterDefinition.fromJSON(param));
         let modifiers = new EndpointModifiers(json.mutability, json.payableInTokens, json.onlyOwner);
 
-        return new EndpointDefinition(json.name, json.doc, input, output, modifiers);
+        return new EndpointDefinition(json.name, json.docs, input, output, modifiers);
     }
 }
 
