@@ -6,7 +6,7 @@ const DescriptionPlaceholder = "N / A";
 
 export class EndpointDefinition {
     readonly name: string;
-    readonly doc: string[];
+    readonly doc: string[] = [];
     readonly input: EndpointParameterDefinition[] = [];
     readonly output: EndpointParameterDefinition[] = [];
     readonly modifiers: EndpointModifiers;

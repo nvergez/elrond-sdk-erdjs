@@ -38,7 +38,7 @@ describe("test smart contract results parser", () => {
             new EndpointParameterDefinition("a", "a", new BigUIntType()),
             new EndpointParameterDefinition("b", "b", new BytesType())
         ];
-        let endpoint = new EndpointDefinition("foo", [], outputParameters, endpointModifiers);
+        let endpoint = new EndpointDefinition("foo", [], [], outputParameters, endpointModifiers);
 
         let queryResponse = new ContractQueryResponse({
             returnData: [
@@ -63,7 +63,7 @@ describe("test smart contract results parser", () => {
             new EndpointParameterDefinition("a", "a", new BigUIntType()),
             new EndpointParameterDefinition("b", "b", new BytesType())
         ];
-        let endpoint = new EndpointDefinition("foo", [], outputParameters, endpointModifiers);
+        let endpoint = new EndpointDefinition("foo", [], [], outputParameters, endpointModifiers);
 
         let transactionOnNetwork = new TransactionOnNetwork({
             contractResults: new ContractResults([
