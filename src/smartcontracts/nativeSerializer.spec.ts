@@ -17,7 +17,7 @@ describe("test native serializer", () => {
             new EndpointParameterDefinition("", "", new OptionType(new U32Type())),
             new EndpointParameterDefinition("", "", new OptionalType(new BytesType()))
         ];
-        const endpoint = new EndpointDefinition("foo", inputParameters, [], endpointModifiers);
+        const endpoint = new EndpointDefinition("foo", [], inputParameters, [], endpointModifiers);
 
         const p0 = 42;
         const p1 = [new Address("erd1dc3yzxxeq69wvf583gw0h67td226gu2ahpk3k50qdgzzym8npltq7ndgha"), new Address("erd1r69gk66fmedhhcg24g2c5kn2f2a5k4kvpr6jfw67dn2lyydd8cfswy6ede")];
@@ -52,7 +52,7 @@ describe("test native serializer", () => {
             new EndpointParameterDefinition("b", "b", new ListType(new AddressType())),
             new EndpointParameterDefinition("c", "c", new BytesType())
         ];
-        let endpoint = new EndpointDefinition("foo", inputParameters, [], endpointModifiers);
+        let endpoint = new EndpointDefinition("foo", [], inputParameters, [], endpointModifiers);
 
         let a = 42;
         let b = [new Address("erd1dc3yzxxeq69wvf583gw0h67td226gu2ahpk3k50qdgzzym8npltq7ndgha")];
