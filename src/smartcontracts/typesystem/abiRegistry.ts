@@ -11,13 +11,13 @@ export class AbiRegistry {
     readonly interfaces: ContractInterface[] = [];
     readonly customTypes: CustomType[] = [];
 
-    static create(json: { name: string; doc: string[], endpoints: any[]; types: any[] }): AbiRegistry {
+    static create(json: { name: string; docs: string[], endpoints: any[]; types: any[] }): AbiRegistry {
         let registry = new AbiRegistry().extend(json);
         let remappedRegistry = registry.remapToKnownTypes();
         return remappedRegistry;
     }
 
-    private extend(json: { name: string; doc: string[], endpoints: any[]; types: any[] }): AbiRegistry {
+    private extend(json: { name: string; docs: string[], endpoints: any[]; types: any[] }): AbiRegistry {
         json.types = json.types || {};
 
         // The "endpoints" collection is interpreted by "ContractInterface".
@@ -141,5 +141,5 @@ function mapEndpoint(endpoint: EndpointDefinition, mapper: TypeMapper): Endpoint
     let newOutput = endpoint.output.map(
         (e) => new EndpointParameterDefinition(e.name, e.description, mapper.mapType(e.type))
     );
-    return new EndpointDefinition(endpoint.name, endpoint.doc, newInput, newOutput, endpoint.modifiers);
+    return new EndpointDefinition(endpoint.name, endpoint.docs, newInput, newOutput, endpoint.modifiers);
 }
