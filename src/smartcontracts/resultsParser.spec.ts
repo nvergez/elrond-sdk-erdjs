@@ -33,7 +33,7 @@ describe("test smart contract results parser", () => {
     let parser = new ResultsParser();
 
     it("should parse query response", async () => {
-        let endpointModifiers = new EndpointModifiers("", []);
+        let endpointModifiers = new EndpointModifiers("", [], false);
         let outputParameters = [
             new EndpointParameterDefinition("a", "a", new BigUIntType()),
             new EndpointParameterDefinition("b", "b", new BytesType())
@@ -58,7 +58,7 @@ describe("test smart contract results parser", () => {
     });
 
     it("should parse contract outcome", async () => {
-        let endpointModifiers = new EndpointModifiers("", []);
+        let endpointModifiers = new EndpointModifiers("", [], false);
         let outputParameters = [
             new EndpointParameterDefinition("a", "a", new BigUIntType()),
             new EndpointParameterDefinition("b", "b", new BytesType())
