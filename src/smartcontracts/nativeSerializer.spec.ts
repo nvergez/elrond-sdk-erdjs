@@ -7,7 +7,7 @@ import { ErrTypeInferenceSystemRequiresRegularJavascriptObjects } from "../error
 
 describe("test native serializer", () => {
     it("should perform type inference", async () => {
-        const endpointModifiers = new EndpointModifiers("", []);
+        const endpointModifiers = new EndpointModifiers("", [], false);
         const inputParameters = [
             new EndpointParameterDefinition("", "", new BigUIntType()),
             new EndpointParameterDefinition("", "", new ListType(new AddressType())),
@@ -46,7 +46,7 @@ describe("test native serializer", () => {
     });
 
     it("should not accept already typed values", async () => {
-        let endpointModifiers = new EndpointModifiers("", []);
+        let endpointModifiers = new EndpointModifiers("", [], false);
         let inputParameters = [
             new EndpointParameterDefinition("a", "a", new BigUIntType()),
             new EndpointParameterDefinition("b", "b", new ListType(new AddressType())),
