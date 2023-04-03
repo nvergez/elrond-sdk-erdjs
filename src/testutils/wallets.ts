@@ -1,12 +1,13 @@
+import { UserSecretKey, UserSigner } from "@multiversx/sdk-wallet";
+import { UserSigner as UserSignerNext } from "@multiversx/sdk-wallet-next";
 import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import { Account } from "../account";
 import { Address } from "../address";
 import { IAddress } from "../interface";
-import { isOnBrowserTests } from "./utils";
-import { UserSecretKey, UserSigner } from "@elrondnetwork/erdjs-walletcore"
 import { IAccountOnNetwork } from "../interfaceOfNetwork";
+import { isOnBrowserTests } from "./utils";
 
 interface IAccountFetcher {
     getAccount(address: IAddress): Promise<IAccountOnNetwork>;
@@ -62,7 +63,7 @@ async function readTestWalletFileContents(name: string): Promise<string> {
 }
 
 async function downloadTextFile(url: string) {
-    let response = await axios.get(url, { responseType: "text", transformResponse: []});
+    let response = await axios.get(url, { responseType: "text", transformResponse: [] });
     let text = response.data.toString();
     return text;
 }
@@ -72,6 +73,7 @@ export class TestWallet {
     readonly secretKeyHex: string;
     readonly secretKey: Buffer;
     readonly signer: UserSigner;
+    readonly signerNext: UserSignerNext;
     readonly keyFileObject: any;
     readonly pemFileText: any;
     readonly account: Account;
@@ -81,6 +83,7 @@ export class TestWallet {
         this.secretKeyHex = secretKeyHex;
         this.secretKey = Buffer.from(secretKeyHex, "hex");
         this.signer = new UserSigner(UserSecretKey.fromString(secretKeyHex));
+        this.signerNext = new UserSignerNext(UserSecretKey.fromString(secretKeyHex));
         this.keyFileObject = keyFileObject;
         this.pemFileText = pemFileText;
         this.account = new Account(this.address);

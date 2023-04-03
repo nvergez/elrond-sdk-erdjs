@@ -1,24 +1,24 @@
 import { BigNumber } from "bignumber.js";
-import { IAddress, IChainID, IGasLimit, IGasPrice, INonce, IPlainTransactionObject, ISignature, ITransactionPayload, ITransactionValue } from "./interface";
 import { Address } from "./address";
+import { TRANSACTION_MIN_GAS_PRICE } from "./constants";
+import * as errors from "./errors";
+import { Hash } from "./hash";
+import { IAddress, IChainID, IGasLimit, IGasPrice, INonce, IPlainTransactionObject, ISignature, ITransactionPayload, ITransactionValue } from "./interface";
+import { INetworkConfig } from "./interfaceOfNetwork";
 import {
   TransactionOptions,
-  TransactionVersion,
+  TransactionVersion
 } from "./networkParams";
-import { Signature } from "./signature";
-import { guardNotEmpty } from "./utils";
-import { TransactionPayload } from "./transactionPayload";
-import * as errors from "./errors";
 import { ProtoSerializer } from "./proto";
-import { Hash } from "./hash";
-import { INetworkConfig } from "./interfaceOfNetwork";
-import { TRANSACTION_MIN_GAS_PRICE } from "./constants";
+import { Signature } from "./signature";
+import { TransactionPayload } from "./transactionPayload";
+import { guardNotEmpty } from "./utils";
 
 const createTransactionHasher = require("blake2b");
 const TRANSACTION_HASH_LENGTH = 32;
 
 /**
- * An abstraction for creating, signing and broadcasting Elrond transactions.
+ * An abstraction for creating, signing and broadcasting transactions.
  */
 export class Transaction {
   /**
@@ -108,7 +108,7 @@ export class Transaction {
     options?: TransactionOptions;
   }) {
     this.nonce = nonce || 0;
-    this.value = value || 0;
+    this.value = value ? new BigNumber(value.toString()).toFixed(0) : 0;
     this.sender = sender;
     this.receiver = receiver;
     this.gasPrice = gasPrice || TRANSACTION_MIN_GAS_PRICE;
@@ -242,7 +242,7 @@ export class Transaction {
   static fromPlainObject(plainObjectTransaction: IPlainTransactionObject): Transaction {
     const tx = new Transaction({
       nonce: Number(plainObjectTransaction.nonce),
-      value: new BigNumber(plainObjectTransaction.value),
+      value: new BigNumber(plainObjectTransaction.value).toFixed(0),
       receiver: Address.fromString(plainObjectTransaction.receiver),
       sender: Address.fromString(plainObjectTransaction.sender),
       gasPrice: Number(plainObjectTransaction.gasPrice),
@@ -267,8 +267,13 @@ export class Transaction {
    * @param signature The signature, as computed by a signer.
    * @param signedBy The address of the signer.
    */
-  applySignature(signature: ISignature, signedBy: IAddress) {
-    this.signature = signature;
+  applySignature(signature: ISignature | Buffer, signedBy: IAddress) {
+    if (signature instanceof Buffer) {
+      this.signature = new Signature(signature);
+    } else {
+      this.signature = signature;
+    }
+
     this.sender = signedBy;
     this.hash = TransactionHash.compute(this);
   }
